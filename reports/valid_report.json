@@ -1,0 +1,17 @@
+{
+  "file_name": "valid_orders.csv",
+  "total_rows": 8,
+  "total_columns": 5,
+  "status": "passed",
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "missing_values": 0,
+    "duplicate_ids": 0,
+    "invalid_dates": 0,
+    "invalid_emails": 0,
+    "negative_amounts": 0,
+    "invalid_amounts": 0,
+    "invalid_statuses": 0
+  }
+}

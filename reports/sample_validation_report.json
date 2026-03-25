@@ -1,0 +1,68 @@
+{
+  "file_name": "invalid_orders.csv",
+  "total_rows": 9,
+  "total_columns": 5,
+  "status": "failed",
+  "errors": [
+    {
+      "row": 5,
+      "column": "customer_email",
+      "message": "Missing value"
+    },
+    {
+      "row": 6,
+      "column": "order_date",
+      "message": "Missing value"
+    },
+    {
+      "row": 1,
+      "column": "order_id",
+      "message": "Duplicate order_id"
+    },
+    {
+      "row": 4,
+      "column": "order_id",
+      "message": "Duplicate order_id"
+    },
+    {
+      "row": 2,
+      "column": "customer_email",
+      "message": "Invalid email format"
+    },
+    {
+      "row": 5,
+      "column": "customer_email",
+      "message": "Invalid email format"
+    },
+    {
+      "row": 7,
+      "column": "order_date",
+      "message": "Invalid date format"
+    },
+    {
+      "row": 3,
+      "column": "amount",
+      "message": "Amount cannot be negative"
+    },
+    {
+      "row": 8,
+      "column": "amount",
+      "message": "Invalid amount"
+    },
+    {
+      "row": 9,
+      "column": "status",
+      "message": "Invalid status: done"
+    }
+  ],
+  "warnings": [],
+  "summary": {
+    "missing_values": 2,
+    "duplicate_ids": 2,
+    "invalid_dates": 1,
+    "invalid_emails": 2,
+    "negative_amounts": 1,
+    "invalid_amounts": 1,
+    "invalid_statuses": 1
+  }
+}
