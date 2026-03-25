@@ -1,25 +1,26 @@
-# Data Quality Monitoring Service
+# Data Quality Monitoring Service with Async Job Processing
 
 ## Overview
-This project is a lightweight backend service that validates CSV datasets before they are used in downstream systems. It is designed to simulate an internal data quality tool that helps prevent bad data from breaking analytics pipelines, dashboards, or machine learning workflows.
+This project is a lightweight backend service that validates CSV datasets before they are used in downstream systems. It simulates an internal data quality tool that helps prevent bad data from breaking analytics pipelines, dashboards, or machine learning workflows.
 
-The service exposes an API where users can upload a CSV file and receive a structured validation report containing errors, warnings, and summary metrics.
+The service exposes an API where users can upload a CSV file, receive a job ID, and poll for validation results asynchronously. This design mirrors real-world batch processing systems where work is submitted first and completed later.
 
 ## Table of Contents
 - [Problem](#problem)
 - [Solution](#solution)
+- [Why This Project Matters](#why-this-project-matters)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Running the Application](#running-the-application)
 - [API Endpoints](#api-endpoints)
-- [Sample Data](#sample-data)
 - [Sample Output](#sample-output)
 - [How It Works](#how-it-works)
 - [Design Decisions](#design-decisions)
 - [Future Improvements](#future-improvements)
 - [Use Cases](#use-cases)
+- [Why This Project Matters](#why-this-project-matters)
 - [Author](#author)
 
 ---
@@ -39,7 +40,7 @@ If not caught early, these issues can:
 ---
 
 ## Solution
-This service validates incoming CSV files and generates a structured report before the data is processed further.
+This service validates incoming CSV files and generates a structured report before the data is consumed by downstream systems such as analytics pipelines, dashboards, or machine learning workflows.
 
 It performs:
 - Schema validation (required columns)
@@ -49,8 +50,24 @@ It performs:
 
 ---
 
+## Why This Project Matters
+
+This project demonstrates how backend systems handle data validation as an asynchronous workflow rather than a blocking request. Instead of returning results immediately, the service follows a job-based pattern where work is submitted, processed in the background, and retrieved later using a job ID.
+
+This pattern is commonly used in:
+- ETL pipelines
+- Batch processing systems
+- Machine learning workflows
+- Internal data platforms
+
+By implementing asynchronous job processing and status tracking, this project reflects real-world backend system design rather than a simple CRUD API.
+
+---
+
 ## Features
 - CSV file upload via API
+- Asynchronous job submission
+- Job status tracking using job IDs
 - Required column validation
 - Row-level data validation:
   - Missing values
@@ -72,27 +89,29 @@ It performs:
 - Pandas
 - Pydantic
 - Uvicorn
+- Python threading (background job processing)
 
 ---
 
 ## Project Structure
 
-
+```text
 data-quality-monitor/
 ├── app/
 │   ├── main.py
 │   ├── validator.py
 │   ├── rules.py
-│   └── models.py
+│   ├── models.py
+│   └── job_manager.py
 ├── sample_data/
 │   ├── valid_orders.csv
 │   └── invalid_orders.csv
 ├── reports/
-│   └── sample_validation_report.json
+│   ├── sample_validation_report.json
+│   └── async_sample_report.json
 ├── requirements.txt
 └── README.md
-
-
+```
 
 ---
 
@@ -100,23 +119,24 @@ data-quality-monitor/
 
 ### 1. Clone the repository
 
-bash
+```bash
 git clone <your-repo-url>
 cd data-quality-monitor
+```
 
 
 ### 2. Create virtual environment
 
-bash
+```bash
 python -m venv venv
 source venv/bin/activate
-
+```
 
 ### 3. Install dependencies
 
-bash
+```bash
 pip install -r requirements.txt
-
+```
 
 
 ---
@@ -125,9 +145,9 @@ pip install -r requirements.txt
 
 Start the FastAPI server:
 
-bash
+```bash
 uvicorn app.main:app --reload
-
+```
 
 Open Swagger UI:
 
@@ -143,84 +163,155 @@ Returns service status.
 
 **Response:**
 
-json
+```json
 {
   "status": "ok"
 }
-
-
-### POST /validate
-Upload a CSV file for validation.
-
-#### Request
-- **Content-Type:** multipart/form-data
-- **File:** CSV file
-
-#### Response
-Returns a structured validation report.
-
-**Example:**
-
-json
-{
-  "file_name": "invalid_orders.csv",
-  "total_rows": 9,
-  "total_columns": 5,
-  "status": "failed",
-  "errors": [
-    {
-      "row": 2,
-      "column": "customer_email",
-      "message": "Invalid email format"
-    }
-  ],
-  "warnings": [],
-  "summary": {
-    "missing_values": 2,
-    "duplicate_ids": 2,
-    "invalid_dates": 1,
-    "invalid_emails": 1,
-    "negative_amounts": 1,
-    "invalid_amounts": 1,
-    "invalid_statuses": 1
-  }
-}
-
+```
 
 
 ---
 
-## Sample Data
+### POST /jobs
+Uploads a CSV file and creates an asynchronous validation job.
 
-### sample_data/valid_orders.csv
-A clean dataset with no validation issues.
+- Request:
+  - Content-Type: multipart/form-data
+  - Body: CSV file
 
-**Expected result: reports/valid_report.json**
+- Behavior:
+  - Saves the uploaded file
+  - Creates a unique job ID
+  - Starts background validation
+  - Returns immediately with job status
 
+Example response:
+```json
+{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "processing"
+}
+```
 
-### sample_data/invalid_orders.csv
-A dataset intentionally containing:
-- Invalid email format
-- Duplicate order IDs
-- Missing values
-- Invalid dates
-- Invalid amounts
-- Invalid status values
+---
 
-**Expected result: reports/sample_validation_report.json**
+### GET /jobs/{job_id}
+Retrieves the current status of a validation job and its result when available.
 
+- Path Parameter:
+  - job_id: string
+
+- Behavior:
+  - Returns job status
+  - Returns validation result once processing is complete
+
+Example response (processing):
+```json
+{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "processing",
+  "result": null
+}
+```
+
+Example response (completed):
+```json
+{
+  "job_id": "c5a97f95-2617-4c27-ad88-b7d33dcdfc8f",
+  "status": "completed",
+  "result": {
+    "file_name": "invalid_orders.csv",
+    "total_rows": 9,
+    "total_columns": 5,
+    "status": "failed",
+    "errors": [
+      {
+        "row": 5,
+        "column": "customer_email",
+        "message": "Missing value"
+      },
+      {
+        "row": 6,
+        "column": "order_date",
+        "message": "Missing value"
+      },
+      {
+        "row": 1,
+        "column": "order_id",
+        "message": "Duplicate order_id"
+      },
+      {
+        "row": 4,
+        "column": "order_id",
+        "message": "Duplicate order_id"
+      },
+      {
+        "row": 2,
+        "column": "customer_email",
+        "message": "Invalid email format"
+      },
+      {
+        "row": 5,
+        "column": "customer_email",
+        "message": "Invalid email format"
+      },
+      {
+        "row": 7,
+        "column": "order_date",
+        "message": "Invalid date format"
+      },
+      {
+        "row": 3,
+        "column": "amount",
+        "message": "Amount cannot be negative"
+      },
+      {
+        "row": 8,
+        "column": "amount",
+        "message": "Invalid amount"
+      },
+      {
+        "row": 9,
+        "column": "status",
+        "message": "Invalid status: done"
+      }
+    ],
+    "warnings": [],
+    "summary": {
+      "missing_values": 2,
+      "duplicate_ids": 2,
+      "invalid_dates": 1,
+      "invalid_emails": 2,
+      "negative_amounts": 1,
+      "invalid_amounts": 1,
+      "invalid_statuses": 1
+    }
+  }
+}
+```
+---
+
+## Sample Output
+
+Example validation output is available in:
+
+```text
+reports/sample_validation_report.json
+reports/async_sample_report.json
+```
 ---
 
 ## How It Works
 
 1. The API receives a CSV file upload
-2. The file is parsed into a pandas DataFrame
-3. Validation rules are applied:
+2. A validation job is created and assigned a unique job ID
+3. The file is processed in the background
+4. Validation rules are applied:
    - File-level checks (required columns)
    - Row-level checks (data correctness)
-4. Errors are collected and categorized
-5. Summary metrics are generated
-6. A structured JSON report is returned
+5. Errors are collected and categorized
+6. Summary metrics are generated
+7. The client polls the job status endpoint to retrieve the final result
 
 ---
 
@@ -230,10 +321,14 @@ A dataset intentionally containing:
   Each validation rule is implemented as an independent function for clarity and extensibility.
 
 - Separation of concerns:
-  - rules.py handles validation logic
-  - validator.py orchestrates execution
-  - models.py defines response schema
-  - main.py exposes API endpoints
+  - `rules.py` handles validation logic
+  - `validator.py` orchestrates execution
+  - `models.py` defines response schemas
+  - `job_manager.py` manages async job lifecycle
+  - `main.py` exposes API endpoints
+
+- Asynchronous processing:
+  Validation runs in a background thread so the API can return a job ID immediately instead of blocking until processing completes.
 
 - Typed responses using Pydantic:
   Ensures consistent and well-defined API output.
@@ -242,12 +337,13 @@ A dataset intentionally containing:
 
 ## Future Improvements
 
-- Add warning-level validations (e.g., outliers)
-- Support for additional file formats (JSON, Parquet)
-- Config-driven validation rules
-- Persistent storage of validation reports
-- UI dashboard for uploading and viewing reports
-- Integration with data pipelines (Airflow, etc.)
+- Persist jobs in a database instead of in-memory storage
+- Add failed job state and error tracking
+- Support downloadable validation reports
+- Add warning-level validations for suspicious but non-blocking values
+- Support additional file formats such as JSON and Parquet
+- Replace background threads with a proper task queue such as Celery or Redis
+- Build a simple frontend dashboard for job submission and status tracking
 
 ---
 
