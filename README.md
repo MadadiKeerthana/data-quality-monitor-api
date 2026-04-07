@@ -3,12 +3,14 @@
 ## Overview
 This project is a lightweight backend service that validates CSV datasets before they are used in downstream systems. It simulates an internal data quality tool that helps prevent bad data from breaking analytics pipelines, dashboards, or machine learning workflows.
 
-The service exposes an API where users can upload a CSV file, receive a job ID, and poll for validation results asynchronously. This design mirrors real-world batch processing systems where work is submitted first and completed later.
+The service exposes an API where users can upload a CSV file, receive a job ID, and poll for validation results asynchronously. This design mirrors real-world batch processing systems where work is submitted first and processed asynchronously.
+
+---
 
 ## Table of Contents
+- [Why This Project Matters](#why-this-project-matters)
 - [Problem](#problem)
 - [Solution](#solution)
-- [Why This Project Matters](#why-this-project-matters)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -18,10 +20,23 @@ The service exposes an API where users can upload a CSV file, receive a job ID, 
 - [Sample Output](#sample-output)
 - [How It Works](#how-it-works)
 - [Design Decisions](#design-decisions)
+- [Limitations](#limitations)
 - [Future Improvements](#future-improvements)
 - [Use Cases](#use-cases)
-- [Why This Project Matters](#why-this-project-matters)
 - [Author](#author)
+
+---
+
+## Why This Project Matters
+This project demonstrates how backend systems handle data validation as an asynchronous workflow rather than a blocking request. Instead of returning results immediately, the service follows a job-based pattern where work is submitted, processed in the background, and retrieved later using a job ID.
+
+This pattern is commonly used in:
+- ETL pipelines
+- Batch processing systems
+- Machine learning workflows
+- Internal data platforms
+
+By implementing asynchronous job processing and job status tracking, this project reflects real-world backend system design rather than a simple synchronous API.
 
 ---
 
@@ -50,24 +65,11 @@ It performs:
 
 ---
 
-## Why This Project Matters
-
-This project demonstrates how backend systems handle data validation as an asynchronous workflow rather than a blocking request. Instead of returning results immediately, the service follows a job-based pattern where work is submitted, processed in the background, and retrieved later using a job ID.
-
-This pattern is commonly used in:
-- ETL pipelines
-- Batch processing systems
-- Machine learning workflows
-- Internal data platforms
-
-By implementing asynchronous job processing and status tracking, this project reflects real-world backend system design rather than a simple CRUD API.
-
----
-
 ## Features
 - CSV file upload via API
 - Asynchronous job submission
 - Job status tracking using job IDs
+- Persistent job storage using SQLite
 - Required column validation
 - Row-level data validation:
   - Missing values
@@ -88,13 +90,14 @@ By implementing asynchronous job processing and status tracking, this project re
 - FastAPI
 - Pandas
 - Pydantic
-- Uvicorn
+- SQLAlchemy
+- SQLite
 - Python threading (background job processing)
+- Uvicorn
 
 ---
 
 ## Project Structure
-
 ```text
 data-quality-monitor/
 ├── app/
@@ -102,13 +105,17 @@ data-quality-monitor/
 │   ├── validator.py
 │   ├── rules.py
 │   ├── models.py
-│   └── job_manager.py
+│   ├── job_manager.py
+│   ├── database.py
+│   └── db_models.py
 ├── sample_data/
 │   ├── valid_orders.csv
 │   └── invalid_orders.csv
 ├── reports/
 │   ├── sample_validation_report.json
-│   └── async_sample_report.json
+│   ├── async_sample_report.json
+│   └── db_persisted_job.json
+├── jobs.db
 ├── requirements.txt
 └── README.md
 ```
@@ -118,26 +125,21 @@ data-quality-monitor/
 ## Installation
 
 ### 1. Clone the repository
-
 ```bash
 git clone <your-repo-url>
 cd data-quality-monitor
 ```
 
-
 ### 2. Create virtual environment
-
 ```bash
 python -m venv venv
 source venv/bin/activate
 ```
 
 ### 3. Install dependencies
-
 ```bash
 pip install -r requirements.txt
 ```
-
 
 ---
 
@@ -289,29 +291,35 @@ Example response (completed):
   }
 }
 ```
+
 ---
 
 ## Sample Output
 
-Example validation output is available in:
+Example validation outputs are available in:
 
 ```text
 reports/sample_validation_report.json
 reports/async_sample_report.json
+reports/db_persisted_job.json
 ```
+
+These demonstrate validation results, async job responses, and persisted job data.
+
 ---
 
 ## How It Works
 
-1. The API receives a CSV file upload
-2. A validation job is created and assigned a unique job ID
-3. The file is processed in the background
+1. The API receives a CSV file upload  
+2. A validation job is created and stored in the database  
+3. A background thread processes the file asynchronously  
 4. Validation rules are applied:
    - File-level checks (required columns)
-   - Row-level checks (data correctness)
-5. Errors are collected and categorized
-6. Summary metrics are generated
-7. The client polls the job status endpoint to retrieve the final result
+   - Row-level checks (data correctness)  
+5. Errors are collected and categorized  
+6. Summary metrics are generated  
+7. Results are stored in the database  
+8. The client polls the job status endpoint to retrieve the result  
 
 ---
 
@@ -321,41 +329,53 @@ reports/async_sample_report.json
   Each validation rule is implemented as an independent function for clarity and extensibility.
 
 - Separation of concerns:
-  - `rules.py` handles validation logic
-  - `validator.py` orchestrates execution
-  - `models.py` defines response schemas
-  - `job_manager.py` manages async job lifecycle
-  - `main.py` exposes API endpoints
+  - `rules.py` handles validation logic  
+  - `validator.py` orchestrates execution  
+  - `models.py` defines response schemas  
+  - `job_manager.py` manages async job lifecycle  
+  - `database.py` handles DB connection  
+  - `db_models.py` defines persistence models  
+  - `main.py` exposes API endpoints  
 
 - Asynchronous processing:
-  Validation runs in a background thread so the API can return a job ID immediately instead of blocking until processing completes.
+  Validation runs in a background thread so the API can return immediately without blocking.
+
+- Persistent storage:
+  Jobs are stored in SQLite, allowing job states and results to survive server restarts.
 
 - Typed responses using Pydantic:
   Ensures consistent and well-defined API output.
 
 ---
 
+## Limitations
+
+- Uses in-memory threading, not a distributed task queue  
+- SQLite is not suitable for high-scale production workloads  
+- No retry mechanism for failed jobs  
+- No authentication or access control  
+
+---
+
 ## Future Improvements
 
-- Persist jobs in a database instead of in-memory storage
-- Add failed job state and error tracking
-- Support downloadable validation reports
-- Add warning-level validations for suspicious but non-blocking values
-- Support additional file formats such as JSON and Parquet
-- Replace background threads with a proper task queue such as Celery or Redis
-- Build a simple frontend dashboard for job submission and status tracking
+- Add retry logic and job queue prioritization  
+- Replace threading with Celery or a distributed queue  
+- Upgrade to PostgreSQL for scalability  
+- Add authentication and role-based access control  
+- Support additional file formats (JSON, Parquet)  
+- Build a frontend dashboard for job submission and tracking  
 
 ---
 
 ## Use Cases
 
-- Pre-validation for ETL pipelines
-- Data quality checks for analytics teams
-- Internal tooling for data ingestion workflows
-- Preventing bad data from reaching production systems
+- Pre-validation for ETL pipelines  
+- Data quality checks for analytics teams  
+- Internal tooling for data ingestion workflows  
+- Preventing bad data from reaching production systems  
 
 ---
 
 ## Author
 Keerthana Madadi
-

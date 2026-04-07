@@ -6,9 +6,12 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from app.validator import validate_csv
 from app.models import ValidationReport
 from app.job_manager import create_job, start_background_job, get_job
+from app.database import engine, Base
+from app.db_models import Job
 
 app = FastAPI(title="Data Quality Monitoring Service")
 
+Base.metadata.create_all(bind=engine)
 
 @app.get("/health")
 def health_check():
